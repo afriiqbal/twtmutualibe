@@ -2,16 +2,17 @@ const Twitter = require('twitter-lite');
 const cron = require('node-cron');
 const color = require('./utils/color');
 const db = require('./db');
+require('dotenv').config()
 
-const autoFollow = true; // true = on | false = off
+const autoFollow = process.env.auto_follow.toUpperCase();
 
 const client = new Twitter({
     subdomain: "api", // "api" is the default (change for other subdomains)
     version: "1.1", // version "1.1" is the default (change for other subdomains)
-    consumer_key: "ZBtzYngBDyxCvXyMczCWXTBPa", // from Twitter.
-    consumer_secret: "dFxjozul3tUqxgeKZ52iMaIbZ7Cfckn51kYAhMrLg1l5m6cbsj", // from Twitter.
-    access_token_key: "1045570448-C8fZc8ehzs8pGy0o0oMtUHCtDMmwCSgdZ9YCNpT", // from your User (oauth_token)
-    access_token_secret: "eXSuvlqns1eyDU8WCLbtWRBZq78tYMOFs2ZL6B27gvKbe" // from your User (oauth_token_secret)
+    consumer_key: process.env.consumer_key, // from Twitter.
+    consumer_secret: process.env.consumer_secret, // from Twitter.
+    access_token_key: process.env.access_token_key, // from your User (oauth_token)
+    access_token_secret: process.env.access_token_secret // from your User (oauth_token_secret)
 });
 
 client.get("account/verify_credentials")
@@ -21,11 +22,11 @@ client.get("account/verify_credentials")
     })
 
 const isMutual = (tweet) => {
-    return tweet.match(new RegExp(/(mutual(an)?)/g));
+    return tweet.match(new RegExp(/mutu((a|4)*)l((a|4)*n)?/g));
 }
 
 const isIgnored = (tweet) => {
-    return tweet.match(new RegExp(/kpop|korea|stan|ig|drop|link|ig|army/g));
+    return tweet.match(new RegExp(/kpop|korea|stan|ig|drop|link|ig|army|(\-)?m(\d+)|pic\.twitter\.com/g));
 }
 
 async function getTweets(userlist) {
@@ -41,7 +42,7 @@ async function getTweets(userlist) {
                 await db.addTweet(tweetID)
                 console.log(color('[MUTUAL_FOUND]', 'green'), 'on', color(user, 'yellow'))
 
-                if (isIgnored(tweetText)) console.log(color('[IGNORED]', 'red'), 'Mengandung kata cringe')
+                if (isIgnored(tweetText)) return console.log(color('[IGNORED]', 'red'), 'Mengandung kata cringe')
 
                 const doRetweet = await client.post("statuses/retweet/" + tweetID).catch(error => error);
                 if (doRetweet.retweeted) console.log(color('[RETWEETED]', 'green'), '=>', color(tweetID))
@@ -115,17 +116,17 @@ const listUser = [
     'mutualanbase'
 ];
 getTweets(listUser)
-autoFollow ? retweeters() : ''
-autoFollow ? follow() : ''
+autoFollow === "ON" ? retweeters() : ''
+autoFollow === "ON" ? follow() : ''
 
 cron.schedule('*/5 * * * *', () => {
-    console.log(color('=== FIND MUTUAL BASE ===', 'green'))
+    console.log(color('=== FIND MUTUAL IN BASE ===', 'green'))
     getTweets(listUser)
 });
 
-if (autoFollow) {
+if (autoFollow === "ON") {
     cron.schedule('*/40 * * * *', () => {
-        console.log(color('=== AUTO FOLLOW RETWEET ===', 'green'))
+        console.log(color('=== AUTO FOLLOW RETWEETERS ===', 'green'))
         follow()
     });
 }
@@ -137,7 +138,7 @@ cron.schedule('*/10 * * * *', async () => {
     retweetList.forEach(async (retweets) => await client.post("statuses/unretweet/" + retweets.id).catch(error => error));
     
     await db.clearAllTweet()
-    if (autoFollow) {
+    if (autoFollow === "ON") {
         await db.removeUserByStatus("error")
         retweeters()
     }
